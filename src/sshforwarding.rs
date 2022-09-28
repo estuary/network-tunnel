@@ -3,12 +3,10 @@ use std::io::ErrorKind;
 use std::os::unix::prelude::PermissionsExt;
 use std::process::Stdio;
 
-use super::errors::Error;
-use super::networktunnel::NetworkTunnel;
+use crate::errors::Error;
+use crate::tunnel::NetworkTunnel;
 
 use async_trait::async_trait;
-use rand::Rng;
-use schemars::JsonSchema;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Child;
 use tokio::process::Command;
@@ -17,17 +15,11 @@ use serde::{Deserialize, Serialize};
 
 pub const ENDPOINT_ADDRESS_KEY: &str = "address";
 
-#[derive(Debug, Serialize, Deserialize, Clone, JsonSchema, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SshForwardingConfig {
     /// Endpoint of the remote SSH server that supports tunneling, in the form of ssh://user@hostname[:port]
     pub ssh_endpoint: String,
-    /// Deprecated field specifying the user used to connect to the SSH endpoint.
-    /// User must now be specified as part of the ssh_endpoint, however to be backward-compatible
-    /// we still allow the option (but do not expose it in JSONSchema).
-    /// See [`SshForwarding::backward_compatible_ssh_endpoint`] for more information
-    #[serde(default)]
-    pub user: Option<String>,
     /// Private key to connect to the remote SSH server.
     pub private_key: String,
     /// The hostname of the remote destination (e.g. the database server).
@@ -47,13 +39,6 @@ pub struct SshForwarding {
     process: Option<Child>,
 }
 
-fn split_host_port(hostport: String) -> Option<(String, u16)> {
-    let mut splits = hostport.as_str().splitn(2, ':');
-    let host = splits.next()?.to_string();
-    let port: u16 = splits.next()?.parse().ok()?;
-    Some((host, port))
-}
-
 impl SshForwarding {
     pub fn new(config: SshForwardingConfig) -> Self {
         Self {
@@ -65,44 +50,6 @@ impl SshForwarding {
 
 #[async_trait]
 impl NetworkTunnel for SshForwarding {
-    fn adjust_endpoint_spec(
-        &mut self,
-        mut endpoint_spec: serde_json::Value,
-    ) -> Result<serde_json::Value, Error> {
-        // If any of the `forward_host`, `forward_port`, or `local_port` properties are
-        // set then the user is assumed to want explicit/manual configuration and we
-        // don't need to perform any further adjustment. If they're all unset we will
-        // proceed to configure things automagically.
-        if self.config.forward_host != ""
-            || self.config.forward_port != 0
-            || self.config.local_port != 0
-        {
-            tracing::warn!(
-                "ssh tunneling with explicit host/port config: forwarding local port {} to remote host {}:{}",
-                self.config.local_port,
-                self.config.forward_host,
-                self.config.forward_port
-            );
-            return Ok(endpoint_spec);
-        }
-
-        let address = endpoint_spec[ENDPOINT_ADDRESS_KEY]
-            .as_str()
-            .map(|x| x.to_string())
-            .ok_or(Error::MissingDestinationAddress)?;
-        let (forward_host, forward_port) =
-            split_host_port(address.clone()).ok_or(Error::BadDestinationAddress(address))?;
-        let local_port = rand::thread_rng().gen_range(10000..20000);
-
-        self.config.forward_host = forward_host;
-        self.config.forward_port = forward_port;
-        self.config.local_port = local_port;
-
-        let address = format!("127.0.0.1:{}", local_port);
-        endpoint_spec[ENDPOINT_ADDRESS_KEY] = serde_json::json!(address);
-        Ok(endpoint_spec)
-    }
-
     async fn prepare(&mut self) -> Result<(), Error> {
         // Write the key to a temporary file
         let mut temp_key_path = std::env::temp_dir();

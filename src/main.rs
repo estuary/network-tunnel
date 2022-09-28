@@ -1,29 +1,64 @@
-pub mod errors;
-pub mod interface;
-pub mod networktunnel;
-pub mod sshforwarding;
-
-use errors::Error;
-use flow_cli_common::{init_logging, LogArgs, LogFormat, LogLevel};
+use clap::Parser;
+use network_tunnel::errors::Error;
+use flow_cli_common::{init_logging, LogArgs};
 use futures::future::{self, TryFutureExt};
-use std::io::{self};
+use network_tunnel::{sshforwarding::{SshForwarding, SshForwardingConfig}, tunnel::NetworkTunnel};
+use std::io;
 
-use interface::NetworkTunnelConfig;
+#[derive(clap::Subcommand, Clone, Debug)]
+pub enum Command {
+    SSH {
+        /// Endpoint of the remote SSH server that supports tunneling, in the form of ssh://user@hostname[:port]
+        #[clap(long)]
+        ssh_endpoint: String,
+
+        #[clap(long)]
+        /// Path to private key file to connect to the remote SSH server.
+        private_key: String,
+
+        /// The hostname of the remote destination (e.g. the database server).
+        #[clap(long)]
+        forward_host: String,
+
+        /// The port of the remote destination (e.g. the database server).
+        #[clap(long)]
+        forward_port: u16,
+
+        /// The local port which will be connected to the remote host/port over an SSH tunnel.
+        /// This should match the port that's used in your connector configuration.
+        #[clap(long)]
+        local_port: u16,
+    }
+}
+
+#[derive(Parser, Debug)]
+#[clap(author, version, about = "Start a network tunnel and port-forward specific ports on the destination host through the tunnel.")]
+pub struct Args {
+    /// The command used to run the underlying airbyte connector
+    #[clap(subcommand)]
+    command: Command,
+
+    #[clap(flatten)]
+    log_args: LogArgs,
+}
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
-    init_logging(&LogArgs {
-        level: LogLevel::Info,
-        format: Some(LogFormat::Json),
-    });
-    if let Err(err) = run().await.as_ref() {
+    let Args {
+        command,
+        log_args,
+    } = Args::parse();
+
+    init_logging(&log_args);
+
+    if let Err(err) = run(command).await.as_ref() {
         tracing::error!(error = ?err, "network tunnel failed.");
         std::process::exit(1);
     }
     Ok(())
 }
 
-async fn run_and_cleanup(tunnel: &mut Box<dyn networktunnel::NetworkTunnel>) -> Result<(), Error> {
+async fn run_and_cleanup(tunnel: &mut Box<dyn NetworkTunnel>) -> Result<(), Error> {
     let tunnel_block = {
         let prep = tunnel.prepare().await;
 
@@ -48,11 +83,22 @@ async fn run_and_cleanup(tunnel: &mut Box<dyn networktunnel::NetworkTunnel>) -> 
     tunnel_block
 }
 
-async fn run() -> Result<(), Error> {
-    let tunnel_config: NetworkTunnelConfig = serde_json::from_reader(io::stdin())?;
-    let mut tunnel = tunnel_config.new_tunnel();
+async fn run(cmd: Command) -> Result<(), Error> {
+    match cmd {
+        Command::SSH { ssh_endpoint, private_key, forward_host, forward_port, local_port } => {
+            let mut tunnel: Box<dyn NetworkTunnel> = Box::new(SshForwarding::new(
+                SshForwardingConfig {
+                    ssh_endpoint,
+                    private_key,
+                    forward_host,
+                    forward_port,
+                    local_port,
+                }
+            ));
 
-    run_and_cleanup(&mut tunnel).await
+            run_and_cleanup(&mut tunnel).await
+        }
+    }
 }
 
 #[cfg(test)]
@@ -60,8 +106,8 @@ mod test {
     use std::any::Any;
 
     use async_trait::async_trait;
-    use crate::errors::Error;
-    use crate::networktunnel::NetworkTunnel;
+    use network_tunnel::errors::Error;
+    use network_tunnel::tunnel::NetworkTunnel;
 
     use crate::run_and_cleanup;
 
@@ -74,10 +120,6 @@ mod test {
 
     #[async_trait]
     impl NetworkTunnel for TestTunnel {
-        fn adjust_endpoint_spec(&mut self, endpoint_spec: serde_json::Value) -> Result<serde_json::Value, Error> {
-            Ok(endpoint_spec)
-        }
-
         async fn prepare(&mut self) -> Result<(), Error> {
             if self.error_in_prepare {
                 return Err(Error::TunnelExitNonZero("prepare-error".to_string()))

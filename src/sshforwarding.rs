@@ -1,6 +1,5 @@
 use std::any::Any;
 use std::io::ErrorKind;
-use std::os::unix::prelude::PermissionsExt;
 use std::process::Stdio;
 
 use crate::errors::Error;
@@ -51,13 +50,6 @@ impl SshForwarding {
 #[async_trait]
 impl NetworkTunnel for SshForwarding {
     async fn prepare(&mut self) -> Result<(), Error> {
-        // Write the key to a temporary file
-        let mut temp_key_path = std::env::temp_dir();
-        temp_key_path.push("id_rsa");
-
-        tokio::fs::write(&temp_key_path, self.config.private_key.as_bytes()).await?;
-        tokio::fs::set_permissions(&temp_key_path, std::fs::Permissions::from_mode(0o600)).await?;
-
         let local_port = self.config.local_port;
         let ssh_endpoint = &self.config.ssh_endpoint;
         let forward_host = &self.config.forward_host;
@@ -85,7 +77,7 @@ impl NetworkTunnel for SshForwarding {
                 "ConnectTimeout=5".to_string(),
                 // Pass the private key
                 "-i".to_string(),
-                temp_key_path.into_os_string().into_string().unwrap(),
+                self.config.private_key.clone(),
                 // Do not execute a remote command. Just forward the ports.
                 "-N".to_string(),
                 // Port forwarding stanza

@@ -5,5 +5,5 @@ A service for easily starting a tunnel to a destination host through a bastion s
 # Usage
 
 ```
-flow-network-tunnel 
+flow-network-tunnel ssh --ssh-endpoint <SSH_ENDPOINT> --private-key <PRIVATE_KEY_FILE_PATH> --forward-host <FORWARD_HOST> --forward-port <FORWARD_PORT> --local-port <LOCAL_PORT> --log.level=debug
 ```

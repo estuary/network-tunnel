@@ -13,7 +13,9 @@ pub enum Command {
         ssh_endpoint: String,
 
         #[clap(long)]
-        /// Path to private key file to connect to the remote SSH server.
+        /// Path to private key file to connect to the remote SSH server. The file must have
+        /// permissions recommended by SSH (http://linuxcommand.org/lc3_man_pages/ssh1.html).
+        /// Recommended permissions: 600.
         private_key: String,
 
         /// The hostname of the remote destination (e.g. the database server).

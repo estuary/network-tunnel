@@ -19,6 +19,3 @@ examples.db*
 Session.vim
 .idea
 
-# Supabase
-**/supabase/.branches
-**/supabase/.temp

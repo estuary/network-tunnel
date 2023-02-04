@@ -27,6 +27,6 @@ serde_json = { version = "1.0.85", features = ["raw_value"]}
 thiserror = "1.0"
 tracing = "0.1"
 tracing-subscriber = {version = "0.3", features = ["time", "json", "env-filter", "fmt"]}
-tokio = { version = "1.15", features = ["full"] }
+tokio = { version = "1.24", features = ["full"] }
 url = {version = "2.2", features = ["serde"]}
 clap = { version = "^3", features = ["derive"] }

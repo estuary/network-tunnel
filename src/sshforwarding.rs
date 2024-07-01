@@ -75,6 +75,10 @@ impl NetworkTunnel for SshForwarding {
                 // Ask the client to time out after 5 seconds
                 "-o".to_string(),
                 "ConnectTimeout=5".to_string(),
+                // Send period keepalive messages to the server to keep the
+                // connection from being closed due to inactivity.
+                "-o".to_string(),
+                "ServerAliveInterval=30".to_string(),
                 // Pass the private key
                 "-i".to_string(),
                 self.config.private_key.clone(),
@@ -149,7 +153,7 @@ impl NetworkTunnel for SshForwarding {
                 // InvalidInput means the process has already exited, in which case
                 // we do not need to cleanup the process
                 Err(e) if e.kind() == ErrorKind::InvalidInput => Ok(()),
-                a => a
+                a => a,
             }?;
         }
 

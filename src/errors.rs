@@ -19,4 +19,9 @@ pub enum Error {
 
     #[error("malformed destination address {0}")]
     BadDestinationAddress(String),
+
+    // Used to silently terminate the SSH tunnel without logging any further errors
+    // this allows the last `ssh: ` log to be reported as the main error to the user
+    #[error("")]
+    SilentError
 }

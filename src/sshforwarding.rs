@@ -112,13 +112,19 @@ impl NetworkTunnel for SshForwarding {
             if line.starts_with("debug1:") {
                 tracing::debug!("ssh: {}", &line);
             } else if line.starts_with("Warning: Permanently added") {
-                tracing::debug!("ssh: {}", &line);
+                tracing::debug!("{}", &line);
             } else if line.contains("Permission denied") {
-                tracing::error!("ssh: {}", &line);
+                tracing::error!("{}", &line);
+                return Err(Error::SilentError)
             } else if line.contains("Network is unreachable") {
-                tracing::error!("ssh: {}", &line);
+                tracing::error!("{}", &line);
+                return Err(Error::SilentError)
             } else if line.contains("Connection timed out") {
-                tracing::error!("ssh: {}", &line);
+                tracing::error!("{}", &line);
+                return Err(Error::SilentError)
+            } else if line.contains("Operation timed out") {
+                tracing::error!("n{}", &line);
+                return Err(Error::SilentError)
             } else {
                 tracing::info!("ssh: {}", &line);
             }

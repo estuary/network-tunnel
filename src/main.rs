@@ -62,19 +62,17 @@ async fn main() -> io::Result<()> {
 
 async fn run_and_cleanup(tunnel: &mut Box<dyn NetworkTunnel>) -> Result<(), Error> {
     let tunnel_block = {
-        let prep = tunnel.prepare().await;
+        tunnel.prepare().await?;
 
-        future::ready(prep).and_then(|()| {
-            // Write "READY" to stdio to unblock Go logic.
-            // The current workflow assumes that
-            //   1. After tunnel.prepare() is called, the network tunnel is able to accept requests from clients without sending errors back to clients.
-            //   2. The network tunnel is able to process client requests immediately after `tunnel.start_serve` is called.
-            // If either of the assumptions is invalid for any new tunnel type, the READY-logic need to be moved to a separate task, which
-            //    sends out the "READY" signal after making sure the network tunnel is started and working properly.
-            println!("READY");
+        // Write "READY" to stdio to unblock Go logic.
+        // The current workflow assumes that
+        //   1. After tunnel.prepare() is called, the network tunnel is able to accept requests from clients without sending errors back to clients.
+        //   2. The network tunnel is able to process client requests immediately after `tunnel.start_serve` is called.
+        // If either of the assumptions is invalid for any new tunnel type, the READY-logic need to be moved to a separate task, which
+        //    sends out the "READY" signal after making sure the network tunnel is started and working properly.
+        println!("READY");
 
-            tunnel.start_serve()
-        }).await
+        tunnel.start_serve().await
     };
 
     // We must make sure we cleanup the child process. This is specially important

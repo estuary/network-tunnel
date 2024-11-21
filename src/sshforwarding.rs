@@ -69,6 +69,7 @@ impl NetworkTunnel for SshForwarding {
                 "-T".to_string(),
                 // Be verbose so we can pick up signals about status of the tunnel
                 "-v".to_string(),
+                "-4".to_string(),
                 // This is necessary unless we also ask for the public key from users
                 "-o".to_string(),
                 "StrictHostKeyChecking no".to_string(),

@@ -6,6 +6,7 @@ use crate::errors::Error;
 use crate::tunnel::NetworkTunnel;
 
 use async_trait::async_trait;
+use tokio::fs;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Child;
 use tokio::process::Command;
@@ -61,6 +62,21 @@ impl NetworkTunnel for SshForwarding {
             forward_host,
             forward_port
         );
+
+        // Check to see if the SSH Key file contains Windows line endings, and if so
+        // strip them out
+        let mut ssh_key_contents = fs::read_to_string(&self.config.private_key).await?;
+        if ssh_key_contents.contains("\r\n") {
+            tracing::warn!("SSH key file contains Windows line endings, stripping them out");
+            ssh_key_contents = ssh_key_contents.replace("\r\n", "\n");
+        }
+
+        // If there is no tailing newline in the file, add one
+        if !ssh_key_contents.ends_with("\n") {
+            ssh_key_contents += "\n";
+        }
+
+        fs::write(&self.config.private_key, ssh_key_contents).await?;
 
         tracing::debug!("spawning ssh tunnel");
         let mut child = Command::new("ssh")

@@ -29,4 +29,4 @@ tracing = "0.1"
 tracing-subscriber = {version = "0.3", features = ["time", "json", "env-filter", "fmt"]}
 tokio = { version = "1.24", features = ["full"] }
 url = {version = "2.2", features = ["serde"]}
-clap = { version = "^3", features = ["derive"] }
+clap = { version = "4", features = ["derive"] }

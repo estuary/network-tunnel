@@ -137,6 +137,8 @@ impl NetworkTunnel for SshForwarding {
                 return Err(Error::SSH(line));
             } else if line.contains("Operation timed out") {
                 return Err(Error::SSH(line));
+            } else if line.contains("Connection refused") {
+                return Err(Error::SSH(line));
             } else {
                 tracing::info!("ssh: {}", &line);
             }

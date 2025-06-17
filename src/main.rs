@@ -54,7 +54,7 @@ async fn main() -> io::Result<()> {
     init_logging(&log_args);
 
     if let Err(err) = run(command).await.as_ref() {
-        tracing::error!(error = %err, "network tunnel failed.");
+        tracing::error!("network tunnel failed: {}", err);
         std::process::exit(1);
     }
     Ok(())

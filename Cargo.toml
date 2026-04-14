@@ -21,7 +21,7 @@ base64="0.13"
 futures="0.3"
 openssl-sys = { version = "0.9", features = ['vendored'] }
 openssl = "0.10"
-rand = "0.8"
+rand = "0.9"
 serde = { version = "1.0", features = ["derive"]}
 serde_json = { version = "1.0.85", features = ["raw_value"]}
 thiserror = "1.0"

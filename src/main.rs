@@ -29,6 +29,11 @@ pub enum Command {
         /// This should match the port that's used in your connector configuration.
         #[clap(long)]
         local_port: u16,
+
+        /// Path to a file of the remote SSH server's host keys, in OpenSSH known_hosts format.
+        /// When set, ssh only connects to a server that presents one of these keys.
+        #[clap(long)]
+        known_hosts: Option<String>,
     }
 }
 
@@ -85,7 +90,7 @@ async fn run_and_cleanup(tunnel: &mut Box<dyn NetworkTunnel>) -> Result<(), Erro
 
 async fn run(cmd: Command) -> Result<(), Error> {
     match cmd {
-        Command::SSH { ssh_endpoint, private_key, forward_host, forward_port, local_port } => {
+        Command::SSH { ssh_endpoint, private_key, forward_host, forward_port, local_port, known_hosts } => {
             let mut tunnel: Box<dyn NetworkTunnel> = Box::new(SshForwarding::new(
                 SshForwardingConfig {
                     ssh_endpoint,
@@ -93,6 +98,7 @@ async fn run(cmd: Command) -> Result<(), Error> {
                     forward_host,
                     forward_port,
                     local_port,
+                    known_hosts,
                 }
             ));
 

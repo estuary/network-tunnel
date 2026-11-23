@@ -10,5 +10,8 @@ flow-network-tunnel ssh --ssh-endpoint <SSH_ENDPOINT> \
   --forward-host <FORWARD_HOST> \
   --forward-port <FORWARD_PORT> \
   --local-port <LOCAL_PORT> \
+  [--known-hosts <KNOWN_HOSTS_FILE_PATH>] \
   --log.level=debug
 ```
+
+With `--known-hosts`, ssh only connects to a server whose host key is in that file. Without it, ssh doesn't check the server's host key.

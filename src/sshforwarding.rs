@@ -32,6 +32,10 @@ pub struct SshForwardingConfig {
     /// This should match the port that's used in your basic connector configuration.
     #[serde(default)]
     pub local_port: u16,
+    /// Path to a file of the remote SSH server's host keys, in OpenSSH known_hosts format.
+    /// When set, ssh only connects to a server that presents one of these keys.
+    #[serde(default)]
+    pub known_hosts: Option<String>,
 }
 
 impl SshForwardingConfig {
@@ -40,14 +44,25 @@ impl SshForwardingConfig {
         let forward_host = &self.forward_host;
         let forward_port = self.forward_port;
 
-        vec![
+        let mut args = vec![
             // Disable psuedo-terminal allocation
             "-T".to_string(),
             // Be verbose so we can pick up signals about status of the tunnel
             "-v".to_string(),
+        ];
+        match &self.known_hosts {
+            Some(known_hosts) => args.extend([
+                "-o".to_string(),
+                "StrictHostKeyChecking yes".to_string(),
+                "-o".to_string(),
+                format!("UserKnownHostsFile {known_hosts}"),
+                "-o".to_string(),
+                "GlobalKnownHostsFile /dev/null".to_string(),
+            ]),
             // This is necessary unless we also ask for the public key from users
-            "-o".to_string(),
-            "StrictHostKeyChecking no".to_string(),
+            None => args.extend(["-o".to_string(), "StrictHostKeyChecking no".to_string()]),
+        }
+        args.extend([
             // Ask the client to time out after 5 seconds
             "-o".to_string(),
             "ConnectTimeout=5".to_string(),
@@ -64,7 +79,8 @@ impl SshForwardingConfig {
             "-L".to_string(),
             format!("{local_port}:{forward_host}:{forward_port}"),
             self.ssh_endpoint.to_string(),
-        ]
+        ]);
+        args
     }
 }
 
@@ -148,6 +164,10 @@ impl NetworkTunnel for SshForwarding {
                 return Err(Error::SSH(line));
             } else if line.contains("Connection refused") {
                 return Err(Error::SSH(line));
+            } else if line.contains("and you have requested strict checking") {
+                return Err(Error::SSH(line));
+            } else if line.contains("Host key verification failed") {
+                return Err(Error::SSH(line));
             } else {
                 tracing::info!("ssh: {}", &line);
             }
@@ -199,25 +219,53 @@ impl NetworkTunnel for SshForwarding {
 mod test {
     use super::SshForwardingConfig;
 
-    fn config() -> SshForwardingConfig {
+    fn config(known_hosts: Option<&str>) -> SshForwardingConfig {
         SshForwardingConfig {
             ssh_endpoint: "ssh://user@bastion.example.com:2222".to_string(),
             private_key: "/tmp/key".to_string(),
             forward_host: "db.internal".to_string(),
             forward_port: 5432,
             local_port: 15432,
+            known_hosts: known_hosts.map(str::to_string),
         }
     }
 
     #[test]
     fn test_ssh_args_without_known_hosts() {
         assert_eq!(
-            config().ssh_args(),
+            config(None).ssh_args(),
             vec![
                 "-T",
                 "-v",
                 "-o",
                 "StrictHostKeyChecking no",
+                "-o",
+                "ConnectTimeout=5",
+                "-o",
+                "ServerAliveInterval=30",
+                "-i",
+                "/tmp/key",
+                "-N",
+                "-L",
+                "15432:db.internal:5432",
+                "ssh://user@bastion.example.com:2222",
+            ]
+        );
+    }
+
+    #[test]
+    fn test_ssh_args_with_known_hosts() {
+        assert_eq!(
+            config(Some("/tmp/known_hosts")).ssh_args(),
+            vec![
+                "-T",
+                "-v",
+                "-o",
+                "StrictHostKeyChecking yes",
+                "-o",
+                "UserKnownHostsFile /tmp/known_hosts",
+                "-o",
+                "GlobalKnownHostsFile /dev/null",
                 "-o",
                 "ConnectTimeout=5",
                 "-o",

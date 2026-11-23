@@ -1,7 +1,6 @@
 use clap::Parser;
 use network_tunnel::errors::Error;
 use flow_cli_common::{init_logging, LogArgs};
-use futures::future::{self, TryFutureExt};
 use network_tunnel::{sshforwarding::{SshForwarding, SshForwardingConfig}, tunnel::NetworkTunnel};
 use std::io;
 
@@ -61,7 +60,7 @@ async fn main() -> io::Result<()> {
 }
 
 async fn run_and_cleanup(tunnel: &mut Box<dyn NetworkTunnel>) -> Result<(), Error> {
-    let tunnel_block = {
+    let tunnel_block = async {
         tunnel.prepare().await?;
 
         // Write "READY" to stdio to unblock Go logic.
@@ -73,7 +72,8 @@ async fn run_and_cleanup(tunnel: &mut Box<dyn NetworkTunnel>) -> Result<(), Erro
         println!("READY");
 
         tunnel.start_serve().await
-    };
+    }
+    .await;
 
     // We must make sure we cleanup the child process. This is specially important
     // as processes that are not `wait`ed on can end up as zombies in some operating

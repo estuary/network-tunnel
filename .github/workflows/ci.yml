@@ -38,6 +38,9 @@ jobs:
       - name: Install protobuf compiler (it's not already included in CI runner)
         run: sudo apt install -y libprotobuf-dev protobuf-compiler
 
+      - name: Test
+        run: cargo test --locked
+
       - name: Build Linux
         run: |-
           sudo apt-get update && \

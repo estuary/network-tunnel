@@ -1,6 +1,6 @@
 use clap::Parser;
 use network_tunnel::errors::Error;
-use flow_cli_common::{init_logging, LogArgs};
+use network_tunnel::logging::{init_logging, LogArgs};
 use network_tunnel::{sshforwarding::{SshForwarding, SshForwardingConfig}, tunnel::NetworkTunnel};
 use std::io;
 

@@ -14,8 +14,6 @@ name = "flow-network-tunnel"
 path = "src/main.rs"
 
 [dependencies]
-flow_cli_common = { git = "https://github.com/estuary/flow" }
-
 async-trait="0.1"
 base64="0.13"
 futures="0.3"

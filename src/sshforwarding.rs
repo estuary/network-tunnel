@@ -34,6 +34,40 @@ pub struct SshForwardingConfig {
     pub local_port: u16,
 }
 
+impl SshForwardingConfig {
+    fn ssh_args(&self) -> Vec<String> {
+        let local_port = self.local_port;
+        let forward_host = &self.forward_host;
+        let forward_port = self.forward_port;
+
+        vec![
+            // Disable psuedo-terminal allocation
+            "-T".to_string(),
+            // Be verbose so we can pick up signals about status of the tunnel
+            "-v".to_string(),
+            // This is necessary unless we also ask for the public key from users
+            "-o".to_string(),
+            "StrictHostKeyChecking no".to_string(),
+            // Ask the client to time out after 5 seconds
+            "-o".to_string(),
+            "ConnectTimeout=5".to_string(),
+            // Send period keepalive messages to the server to keep the
+            // connection from being closed due to inactivity.
+            "-o".to_string(),
+            "ServerAliveInterval=30".to_string(),
+            // Pass the private key
+            "-i".to_string(),
+            self.private_key.clone(),
+            // Do not execute a remote command. Just forward the ports.
+            "-N".to_string(),
+            // Port forwarding stanza
+            "-L".to_string(),
+            format!("{local_port}:{forward_host}:{forward_port}"),
+            self.ssh_endpoint.to_string(),
+        ]
+    }
+}
+
 pub struct SshForwarding {
     config: SshForwardingConfig,
     process: Option<Child>,
@@ -52,7 +86,6 @@ impl SshForwarding {
 impl NetworkTunnel for SshForwarding {
     async fn prepare(&mut self) -> Result<(), Error> {
         let local_port = self.config.local_port;
-        let ssh_endpoint = &self.config.ssh_endpoint;
         let forward_host = &self.config.forward_host;
         let forward_port = self.config.forward_port;
 
@@ -80,31 +113,7 @@ impl NetworkTunnel for SshForwarding {
 
         tracing::debug!("spawning ssh tunnel");
         let mut child = Command::new("ssh")
-            .args(vec![
-                // Disable psuedo-terminal allocation
-                "-T".to_string(),
-                // Be verbose so we can pick up signals about status of the tunnel
-                "-v".to_string(),
-                // This is necessary unless we also ask for the public key from users
-                "-o".to_string(),
-                "StrictHostKeyChecking no".to_string(),
-                // Ask the client to time out after 5 seconds
-                "-o".to_string(),
-                "ConnectTimeout=5".to_string(),
-                // Send period keepalive messages to the server to keep the
-                // connection from being closed due to inactivity.
-                "-o".to_string(),
-                "ServerAliveInterval=30".to_string(),
-                // Pass the private key
-                "-i".to_string(),
-                self.config.private_key.clone(),
-                // Do not execute a remote command. Just forward the ports.
-                "-N".to_string(),
-                // Port forwarding stanza
-                "-L".to_string(),
-                format!("{local_port}:{forward_host}:{forward_port}"),
-                ssh_endpoint.to_string(),
-            ])
+            .args(self.config.ssh_args())
             .stderr(Stdio::piped())
             .spawn()?;
 
@@ -183,5 +192,43 @@ impl NetworkTunnel for SshForwarding {
     // This is only used for testing
     fn as_any(&self) -> &dyn Any {
         self
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::SshForwardingConfig;
+
+    fn config() -> SshForwardingConfig {
+        SshForwardingConfig {
+            ssh_endpoint: "ssh://user@bastion.example.com:2222".to_string(),
+            private_key: "/tmp/key".to_string(),
+            forward_host: "db.internal".to_string(),
+            forward_port: 5432,
+            local_port: 15432,
+        }
+    }
+
+    #[test]
+    fn test_ssh_args_without_known_hosts() {
+        assert_eq!(
+            config().ssh_args(),
+            vec![
+                "-T",
+                "-v",
+                "-o",
+                "StrictHostKeyChecking no",
+                "-o",
+                "ConnectTimeout=5",
+                "-o",
+                "ServerAliveInterval=30",
+                "-i",
+                "/tmp/key",
+                "-N",
+                "-L",
+                "15432:db.internal:5432",
+                "ssh://user@bastion.example.com:2222",
+            ]
+        );
     }
 }

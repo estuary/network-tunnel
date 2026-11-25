@@ -63,9 +63,10 @@ impl SshForwardingConfig {
             None => args.extend(["-o".to_string(), "StrictHostKeyChecking no".to_string()]),
         }
         args.extend([
-            // Ask the client to time out after 5 seconds
+            // Give up if connecting to the server and reading its banner take
+            // longer than 20 seconds.
             "-o".to_string(),
-            "ConnectTimeout=5".to_string(),
+            "ConnectTimeout=20".to_string(),
             // Send period keepalive messages to the server to keep the
             // connection from being closed due to inactivity.
             "-o".to_string(),
@@ -240,7 +241,7 @@ mod test {
                 "-o",
                 "StrictHostKeyChecking no",
                 "-o",
-                "ConnectTimeout=5",
+                "ConnectTimeout=20",
                 "-o",
                 "ServerAliveInterval=30",
                 "-i",
@@ -267,7 +268,7 @@ mod test {
                 "-o",
                 "GlobalKnownHostsFile /dev/null",
                 "-o",
-                "ConnectTimeout=5",
+                "ConnectTimeout=20",
                 "-o",
                 "ServerAliveInterval=30",
                 "-i",
